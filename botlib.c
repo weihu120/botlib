@@ -513,21 +513,33 @@ int botGetFile(BotRequest *br, const char *target_filename) {
     cJSON *result = cJSON_Select(json,".result.file_path:s");
     char *file_path = result ? result->valuestring : NULL;
     sdsfree(body);
-    if (!file_path) return 0; // Error.
+    if (!file_path) {
+        cJSON_Delete(json);
+        return 0;
+    }
 
     /* 2. Get the file content. */
     CURL* curl = curl_easy_init();
-    if (!curl) return 0; // Error.
+    if (!curl) {
+        cJSON_Delete(json);
+        return 0;
+    }
 
     /* We need to open a file for writing. We will be
      * using the curl callback in order to append to the
      * file. */
-    FILE *fp = fopen(target_filename ? target_filename : br->file_id,"w");
-    if (fp == NULL) return 0; // We can't continue without the target file.
+    const char *filename = target_filename ? target_filename : br->file_id;
+    FILE *fp = fopen(filename, "w");
+    if (fp == NULL) {
+        cJSON_Delete(json);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
 
     char url[1024];
     snprintf(url, sizeof(url),
         "https://api.telegram.org/file/bot%s/%s", Bot.apikey, file_path);
+    cJSON_Delete(json);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, makeHTTPGETCallWriterFILE);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &fp);
@@ -541,7 +553,7 @@ int botGetFile(BotRequest *br, const char *target_filename) {
     curl_easy_cleanup(curl);
     fclose(fp);
     /* Best effort removal of incomplete file. */
-    if (retval == 0) unlink(br->file_id);
+    if (retval == 0) unlink(filename);
     return retval;
 }
 
