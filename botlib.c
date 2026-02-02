@@ -789,6 +789,7 @@ int64_t botProcessUpdates(int64_t offset, int timeout) {
             freeBotRequest(br);
             continue;
         }
+        pthread_detach(tid);
         if (Bot.verbose)
             printf("Starting thread to serve: \"%s\"\n",br->request);
 
